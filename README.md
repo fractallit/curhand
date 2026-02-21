@@ -1,6 +1,6 @@
 # CurHand
 
-#### Kurkhand is my humorous attempt to do mouse control through the camera.
+#### CurHand is my humorous attempt to do mouse control through the camera.
 
 <img src=".assets/demo.gif">
 
