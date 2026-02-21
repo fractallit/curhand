@@ -9,9 +9,9 @@
 ## Installation (for what?)
 1) Download the contents of the `src` directory using any method.
 
-1) Install dependencies from `requrements.txt`
+2) Install dependencies from `requrements.txt`
 
-2) Edit if necessary `config.py`
+3) Edit if necessary `config.py`
 
 > By default, the configuration only works for *Linux* and only with *ydotool*, so if you are using a different system or need to manage another tool, change the functions to `config.py`.
 
