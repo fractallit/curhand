@@ -22,9 +22,10 @@ Variables in the config:
 4) `pressPoints` - which 2 points on the hand should be next to each other in order for the cursor to switch to press mode
 5) `pressDistanceTrigger` - how far should these 2 points be in order to switch to press mode
 6) `monitorResolution` - resolution of your monitor
+7) `drawPointsNums` - whether to draw the numbers of all points on the hand
 
 Functions in the config:
-1) `mouseMoveTo` - your cursor movement function (in absolute coordinates)
+1) `mouseSetPoint` - your cursor position set function (in absolute coordinates)
 2) `mouseDown` - a function for holding down the left mouse button
 3) `mouseUp` - a function for releasing the left mouse button
 

@@ -7,15 +7,23 @@ import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 
-from config import mouseMoveTo, mouseDown, mouseUp, movePoints, pressPoints, cursorPoint, moveDistanceTrigger, pressDistanceTrigger, monitorResolution
+from config import mouseSetPoint, mouseDown, mouseUp, movePoints, pressPoints, cursorPoint, moveDistanceTrigger, pressDistanceTrigger, monitorResolution, drawPointsNums
 
 
-def workWithFrame(frame: MatLike, detectorHand, detectorFace, moveCoords: list[int], pressed: bool) -> tuple[MatLike, list[int], bool]:
+def smoothMove(old_x: int, old_y, new_x: int, new_y: int) -> tuple[int, int]:
+    target_x = round( (old_x + (old_x + new_x) / 2) / 2 );
+    target_y = round( (old_y + (old_y + new_y) / 2) / 2 );
+
+    mouseSetPoint(target_x, target_y)
+
+    return target_x, target_y
+
+
+def update(frame: MatLike, detectorHand, detectorFace, pressed: bool, old_x: int, old_y: int) -> tuple[MatLike, bool, int, int]:
     """
     :param frame: frame from camera
     :param detectorHand: hand detector
     :param detectorFace: face detector
-    :param moveCoords: last move coordinates of the cursor
     :param pressed: last state of the cursor
     """
     frame = cv2.flip(frame, 1)
@@ -26,33 +34,32 @@ def workWithFrame(frame: MatLike, detectorHand, detectorFace, moveCoords: list[i
 
     detectionsHand = detectorHand.detect(image)
 
+    new_x, new_y = old_x, old_y
+
     # detect hand
     if len(detectionsHand.hand_landmarks) > 0:
         detection = detectionsHand.hand_landmarks[0]
 
-        # draw points
-        for num, point in enumerate(detection):
-            x = round(point.x * frame.shape[1])
-            y = round(point.y * frame.shape[0])
+        # draw points nums
+        if drawPointsNums:
+            for num, point in enumerate(detection):
+                x = round(point.x * frame.shape[1])
+                y = round(point.y * frame.shape[0])
 
-            cv2.putText(frame, str(num), (x, y), cv2.FONT_HERSHEY_COMPLEX, 1, (0, 255, 0), 2)
+                cv2.putText(frame, str(num), (x, y), cv2.FONT_HERSHEY_COMPLEX, 1, (0, 255, 0), 2)
 
         # move cursor
         dist = np.sqrt((detection[movePoints[0]].x - detection[movePoints[1]].x)**2 + (detection[movePoints[0]].y - detection[movePoints[1]].y)**2)
         move = dist < moveDistanceTrigger
 
-        updatedX = (detection[cursorPoint].x - 0.2) / 0.6 + 0.1
-        updatedY = (detection[cursorPoint].y - 0.2) / 0.6 + 0.1
+        normalizedX = (detection[cursorPoint].x - 0.2) / 0.6 + 0.1
+        normalizedY = (detection[cursorPoint].y - 0.3) / 0.4 + 0.1
 
-        screenX = round( ( updatedX ) * monitorResolution[0] )
-        screenY = round( ( updatedY ) * monitorResolution[1] )
+        screenX = round( ( normalizedX ) * monitorResolution[0] )
+        screenY = round( ( normalizedY ) * monitorResolution[1] )
 
-        if (abs(moveCoords[0] - screenX) > 15 and move):
-            moveCoords[0] = screenX
-        if (abs(moveCoords[1] - screenY) > 15 and move):
-            moveCoords[1] = screenY
-
-        mouseMoveTo(moveCoords[0], moveCoords[1])
+        if (move):
+            new_x, new_y = smoothMove(old_x, old_y, screenX, screenY)
 
         # press
         dist = np.sqrt((detection[pressPoints[0]].x - detection[pressPoints[1]].x)**2 + (detection[pressPoints[0]].y - detection[pressPoints[1]].y)**2)
@@ -64,6 +71,44 @@ def workWithFrame(frame: MatLike, detectorHand, detectorFace, moveCoords: list[i
         elif not press and pressed:
             mouseUp()
             pressed = False
+
+        # draw points
+
+        # cursor point
+        cursorPointXOnCamera = round(detection[cursorPoint].x * frame.shape[1])
+        cursorPointYOnCamera = round(detection[cursorPoint].y * frame.shape[0])
+
+        cv2.circle(frame, (cursorPointXOnCamera, cursorPointYOnCamera), 7, (0, 255, 255), -1)
+
+        # move points
+        movePoint1XOnCamera = round(detection[movePoints[0]].x * frame.shape[1])
+        movePoint1YOnCamera = round(detection[movePoints[0]].y * frame.shape[0])
+        movePoint2XOnCamera = round(detection[movePoints[1]].x * frame.shape[1])
+        movePoint2YOnCamera = round(detection[movePoints[1]].y * frame.shape[0])
+
+        moveColor = (0, 255, 0) if move else (0, 0, 255)
+
+        cv2.circle(frame, (movePoint1XOnCamera, movePoint1YOnCamera), round(moveDistanceTrigger/1.5*frame.shape[0]), moveColor, -1)
+        cv2.circle(frame, (movePoint2XOnCamera, movePoint2YOnCamera), round(moveDistanceTrigger/1.5*frame.shape[0]), moveColor, -1)
+
+        # press points
+        pressPoint1XOnCamera = round(detection[pressPoints[0]].x * frame.shape[1])
+        pressPoint1YOnCamera = round(detection[pressPoints[0]].y * frame.shape[0])
+        pressPoint2XOnCamera = round(detection[pressPoints[1]].x * frame.shape[1])
+        pressPoint2YOnCamera = round(detection[pressPoints[1]].y * frame.shape[0])
+
+        pressColor = (0, 255, 0) if press else (0, 0, 255)
+
+        cv2.circle(frame, (pressPoint1XOnCamera, pressPoint1YOnCamera), round(pressDistanceTrigger/1.5*frame.shape[0]), pressColor, -1)
+        cv2.circle(frame, (pressPoint2XOnCamera, pressPoint2YOnCamera), round(pressDistanceTrigger/1.5*frame.shape[0]), pressColor, -1)
+
+        # draw lines
+
+        # move line
+        cv2.line(frame, (movePoint1XOnCamera, movePoint1YOnCamera), (movePoint2XOnCamera, movePoint2YOnCamera), (50, 50, 50), 5)
+
+        # press line
+        cv2.line(frame, (pressPoint1XOnCamera, pressPoint1YOnCamera), (pressPoint2XOnCamera, pressPoint2YOnCamera), (50, 50, 50), 5)
 
     # detect face
     detectionsFace = detectorFace.detect(image)
@@ -83,7 +128,7 @@ def workWithFrame(frame: MatLike, detectorHand, detectorFace, moveCoords: list[i
 
         frame[y:y+height, x:x+width] = blurredRoi
 
-    return (frame, moveCoords, pressed)
+    return frame, pressed, new_x, new_y
 
 
 def main():
@@ -95,7 +140,6 @@ def main():
     optionsFace = vision.FaceDetectorOptions(base_options=baseOptionsFace)
     detectorFace = vision.FaceDetector.create_from_options(optionsFace)
 
-    moveCoords = [-100, -100]
     pressed = False
 
     cap = cv2.VideoCapture(0)
@@ -104,17 +148,19 @@ def main():
         print('Cannot open camera')
         return
 
+    old_x, old_y = 0, 0
+
     while True:
         ret, frame = cap.read()
 
         if not ret:
             break
 
-        frameData = workWithFrame(frame, detectorHand, detectorFace, moveCoords, pressed)
+        frameData = update(frame, detectorHand, detectorFace, pressed, old_x, old_y)
 
         frame = frameData[0]
-        moveCoords = frameData[1]
-        pressed = frameData[2]
+        pressed = frameData[1]
+        old_x, old_y = frameData[2], frameData[3]
 
         cv2.imshow('Video', frame)
 
